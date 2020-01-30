@@ -1,0 +1,94 @@
+#coding = utf-8
+'''
+*Author     :Jianfeng Zhang
+*e-mail     :13052931019@163.com
+*Blog       :https://me.csdn.net/qq_39004111
+*Github     :https://github.com/JianfengZhang112358
+*Data       :2020.01.29
+*Description:AutoEncoder
+'''
+from keras.layers import Input, Dense
+from keras.models import Model,Sequential,load_model
+from keras.datasets import mnist
+from keras.utils import np_utils
+from keras.utils import plot_model
+from keras.callbacks import TensorBoard
+import numpy as np
+import matplotlib.pyplot as plt
+import warnings
+import time
+#忽略系统警告
+warnings.filterwarnings('ignore')
+
+class_num = 10#mnist类别数目
+encoding_dim1 = 1000# 编码潜在空间表征维度
+encoding_dim2 = 512
+encoding_dim3 = 128
+encoding_dim4 = 10
+noise_factor = 0.3#噪声因子
+
+#加载数据
+(x_train,y_train),(x_test,y_test) = mnist.load_data()
+#将灰度图进行归一化0-1，加速收敛
+x_train = x_train.astype('float32') / 255.
+x_test = x_test.astype('float32') / 255.
+#将28*28的图像转成784维的向量输入神经网络
+x_train = x_train.reshape(-1,784)#60000*784
+x_test  = x_test.reshape(-1,784)
+#加入高斯噪声
+x_train_noisy = x_train + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=x_train.shape)
+x_test_noisy = x_test + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=x_test.shape)
+x_train_noisy = np.clip(x_train_noisy, 0., 1.)#输出限幅
+x_test_noisy = np.clip(x_test_noisy, 0., 1.)
+
+
+# 使用一个全连接网络来搭建编码器
+encoded1 = Dense(encoding_dim1, activation='relu',input_dim=784,name='Input')
+encoded2 = Dense(encoding_dim2, activation='relu',name='encoder_feature1')
+encoded3 = Dense(encoding_dim3, activation='relu',name='encoder_feature2')
+encoded4 = Dense(encoding_dim4, activation='relu',name='encoder_feature3')
+# 使用一个全连接网络来对编码器进行解码
+decoded1 = Dense(encoding_dim3, activation='relu',name='decoder_feature1')
+decoded2 = Dense(encoding_dim2, activation='relu',name='decoder_feature2')
+decoded3 = Dense(encoding_dim1, activation='relu',name='decoder_feature3')
+decoded4 = Dense(784, activation='sigmoid',name='Output')
+# 构建keras模型
+AutoEncoder = Sequential()
+AutoEncoder.add(encoded1)
+AutoEncoder.add(encoded2)
+AutoEncoder.add(encoded3)
+AutoEncoder.add(encoded4)
+AutoEncoder.add(decoded1)
+AutoEncoder.add(decoded2)
+AutoEncoder.add(decoded3)
+AutoEncoder.add(decoded4)
+
+
+AutoEncoder.summary()#画出模型的结构图
+AutoEncoder.compile(loss='mse',optimizer='adam')
+plot_model(AutoEncoder,to_file='model.png',show_shapes=True,show_layer_names=True)
+s = time.time()
+AutoEncoder.fit(x_train_noisy,x_train,epochs=10,batch_size=50,shuffle=True,verbose=1,callbacks=[TensorBoard(log_dir='my_log_dir')])
+AutoEncoder.save('AutoEncoder.h5')
+e = time.time()
+print('Took Time: %.3f s'%(e-s))
+
+
+#画10张图
+predict_img = AutoEncoder.predict(x_test_noisy)
+n = 10  # how many digits we will display
+plt.figure(figsize=(10, 2))
+for i in range(n):
+    ax = plt.subplot(2, n, i + 1)#两行n列位置在第i+1个的子图
+    plt.imshow(x_test_noisy[i+100].reshape(28, 28))
+    plt.gray()
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+
+    ax = plt.subplot(2, n, i + 1 + n)
+    plt.imshow(predict_img[i+100].reshape(28, 28))
+    plt.gray()
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+plt.show()
+
